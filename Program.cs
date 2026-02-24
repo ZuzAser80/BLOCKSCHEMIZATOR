@@ -101,7 +101,7 @@ public class DrawIoGenerator
             max_y = y;
         }
 
-        if ((_types.Any(s.Contains) && s.Contains("{") && s.Contains("(") && s.Contains(")")) || s.Contains("return"))
+        if ((_types.Any(s.Contains) && s.Contains("{") && s.Contains("(") && s.Contains(")")) || s.Contains("return") && !s.Contains("for"))
         {
             return RoundBox(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
