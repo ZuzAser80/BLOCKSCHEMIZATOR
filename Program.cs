@@ -44,8 +44,8 @@ public class IfElseData
     public int X { get; set; }
     public int Y { get; set; }
 
-    public int TrueX {get;set;}
-    public int FalseX {get;set;}
+    public int TrueX { get; set; }
+    public int FalseX { get; set; }
 
     public IfElseData(string id, int x, int y)
     {
@@ -84,7 +84,7 @@ public class DrawIoGenerator
     static int max_x = 0;
     static int max_y = 0;
 
-    static List<string> _types = new List<string>() {"void", "int", "double", "float", "char", "string"};
+    static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string" };
 
     private static XElement ProcessShape(string s, int x, int y, string id)
     {
@@ -137,11 +137,11 @@ public class DrawIoGenerator
         Stack<ConnectData> stack = new Stack<ConnectData>();
         Stack<IfElseData> ifStack = new Stack<IfElseData>();
         int curX = xStart, curY = yStart + yOffset, c = 0, p = 0;
-        List<string> contentList = funcAndBody;        
+        List<string> contentList = funcAndBody;
         for (int i = 0; i < contentList.Count; ++i)
-        {        
+        {
             var s = contentList[i];
-            
+
             var id = uuid + c;
 
             if (s.Contains("{") && i != 0)
@@ -199,8 +199,8 @@ public class DrawIoGenerator
                             elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", curX - xOffset, max_y - yOffset / 2, curX));
                             elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", q.connection_start, uuid + c + "_mid", curX + xOffset, max_y - yOffset / 2, curX));
                             ifStack.Pop();
-                            max_x = int.Max(curX + (int) (1.5*xOffset), max_x);         
-                            min_x = int.Min(curX - (int) (1.5*xOffset), min_x);               
+                            max_x = int.Max(curX + (int)(1.5 * xOffset), max_x);
+                            min_x = int.Min(curX - (int)(1.5 * xOffset), min_x);
                         }
                         else
                         {
@@ -219,19 +219,16 @@ public class DrawIoGenerator
                         elements.Add(CreatePointCell(uuid + c + "_mid", _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2, max_y + 2 * yOffset));
                         elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", _lastIf.TrueX, max_y + yOffset / 2, _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2));
                         elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", _lastIf.LastFalseId, uuid + c + "_mid", _lastIf.FalseX, max_y + yOffset / 2, _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2));
-                        max_x = int.Max(curX + (int) (1.5*xOffset), max_x);  
-                        min_x = int.Min(curX - (int) (1.5*xOffset), min_x);
+                        max_x = int.Max(curX + (int)(1.5 * xOffset), max_x);
+                        min_x = int.Min(curX - (int)(1.5 * xOffset), min_x);
                         ifStack.Pop();
                     }
                 }
                 if (_for || _while)
                 {
-                    // Last shape inside the loop (body)
                     string lastBodyId = uuid + (c - 1).ToString();
-                    // Condition shape
                     string conditionId = q.connection_start;
 
-                    // --- Loop‑back arrow: from last body to condition ---
                     int loopBackX = min_x;               // X of the last body shape (right side)
                     int loopBackY = q.y;                // Y of the condition
                     int midY = curY;       // Y halfway down from the last body
@@ -243,15 +240,15 @@ public class DrawIoGenerator
                         lastBodyId + "_mid", conditionId,
                         loopBackX, loopBackY, midY));
 
-                    // --- Exit arrow: from condition to the next shape ---
-                    // Determine the ID of the shape that follows the loop\
-                    if (stack.Count > 0 && (stack.Peek().line.Contains("for") || stack.Peek().line.Contains("while")) && contentList[i+1].Contains("}") && i + 1 < contentList.Count - 1 )
+
+                    if (stack.Count > 0 && (stack.Peek().line.Contains("for") || stack.Peek().line.Contains("while")) && contentList[i + 1].Contains("}") && i + 1 < contentList.Count - 1)
                     {
-                        elements.Add(ForEndForArrow(uuid + c + "_for_exit_arrow"+ conditionId, conditionId, stack.Peek().connection_start, max_x + 10, q.y, max_y + 10, stack.Peek().x - xOffset - 10, stack.Peek().y + 30));
+                        elements.Add(ForEndForArrow(uuid + c + "_for_exit_arrow" + conditionId, conditionId, stack.Peek().connection_start, max_x + 10, q.y, max_y + 10, stack.Peek().x - xOffset - 10, stack.Peek().y + 30));
                         min_x -= 10;
-                        curX = max_x + (int)(1.5*xOffset);
-                        curY -= yOffset / 2;   
-                    } else
+                        curX = max_x + (int)(1.5 * xOffset);
+                        curY -= yOffset / 2;
+                    }
+                    else
                     {
                         string nextShapeId;
                         if (i + 1 < contentList.Count && (contentList[i + 1].Contains("}") || contentList[i + 1].Contains("if")))
@@ -261,12 +258,11 @@ public class DrawIoGenerator
 
 
 
-                        elements.Add(Arrow(uuid + c + "_for_exit_arrow"+ conditionId, conditionId, nextShapeId));
+                        elements.Add(Arrow(uuid + c + "_for_exit_arrow" + conditionId, conditionId, nextShapeId));
                         min_x -= 10;
-                        // Adjust current X for subsequent statements
-                        // Place the next shape to the right of the loop's widest point
-                        curX = max_x + (int)(1.5*xOffset);
-                        curY -= yOffset / 2;   
+
+                        curX = max_x + (int)(1.5 * xOffset);
+                        curY -= yOffset / 2;
                     }
                 }
                 // все остальные циклы блеать
@@ -274,7 +270,7 @@ public class DrawIoGenerator
             }
             if (s.Contains("else"))
             {
-                curX = max_x + xOffset;                
+                curX = max_x + xOffset;
                 curY += yOffset;
             }
             if (lastTrueElem == id)
@@ -291,7 +287,7 @@ public class DrawIoGenerator
                     c++;
                 }
             }
-        }        
+        }
         int n = 0;
         for (int i = 1; i < c; ++i)
         {
@@ -314,7 +310,7 @@ public class DrawIoGenerator
         }
         int c = 0;
         List<string> _cur = new List<string>();
-        List<string> _types = new List<string>() {"void", "int", "double", "float", "char", "string"};
+        List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string" };
         int braceDepth = 0;
         bool inFunction = false;
         List<string> currentFunction = null;
@@ -323,18 +319,15 @@ public class DrawIoGenerator
         {
             string trimmed = line.Trim();
 
-            // Detect function start: line contains a return type, '(', ')', and not a control keyword
             if (!inFunction &&
                 _types.Any(t => line.Contains(t)) &&
                 line.Contains("(") && line.Contains(")") &&
                 !line.Contains("for") && !line.Contains("while") &&
                 !line.TrimStart().StartsWith("if"))
             {
-                // Start a new function
                 inFunction = true;
                 currentFunction = [line];
 
-                // Count braces already in this line
                 braceDepth = line.Count(c => c == '{') - line.Count(c => c == '}');
                 continue;
             }
@@ -343,11 +336,9 @@ public class DrawIoGenerator
             {
                 currentFunction.Add(line);
 
-                // Update brace depth for this line
                 braceDepth += line.Count(c => c == '{');
                 braceDepth -= line.Count(c => c == '}');
 
-                // If depth returns to zero, the function ended
                 if (braceDepth == 0)
                 {
                     funcs.Add(currentFunction);
@@ -356,21 +347,21 @@ public class DrawIoGenerator
                 }
             }
         }
-        List<XElement> xElements = new List<XElement>();        
+        List<XElement> xElements = new List<XElement>();
 
         funcs.ForEach(o =>
         {
-           var t = ProcessFunc(o, xStart, yStart);
-           xElements.AddRange(t);
-           xStart = max_x + 3 * xOffset;
-           max_x = xStart;
-           min_x = xStart - xOffset/4;
-           max_y = yStart;
+            var t = ProcessFunc(o, xStart, yStart);
+            xElements.AddRange(t);
+            xStart = max_x + 3 * xOffset;
+            max_x = xStart;
+            min_x = xStart - xOffset / 4;
+            max_y = yStart;
         });
 
         //xElements.AddRange(ProcessFunc(funcs[1], 800, 0));
         var r = Root(xElements);
-        
+
 
         new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(_name + "_diagram.xml"); ;
     }
