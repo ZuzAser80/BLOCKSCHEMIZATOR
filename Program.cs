@@ -88,6 +88,10 @@ public class DrawIoGenerator
 
     private static XElement ProcessShape(string s, int x, int y, string id)
     {
+        if(s.StartsWith('/'))
+        {
+            return null;
+        }
         if (x < min_x)
         {
             min_x = x;
@@ -113,7 +117,7 @@ public class DrawIoGenerator
         {
             return CinCout(id, s.TrimStart(), x, y);
         }
-        else if (s.Contains("if") && !s.Contains("else"))
+        else if (s.Contains("if") && !s.Contains("else") && !s.Contains("ifstream"))
         {
             return IfStatement(id, s.Replace('{', ' ').Trim(), x, y);
         }
@@ -161,7 +165,7 @@ public class DrawIoGenerator
             var o = ProcessShape(s, curX, curY, id);
             lastTrueElem = o == null ? lastTrueElem : id;
             elements.Add(o);
-            if (s.Contains("if"))
+            if (s.Contains("if") && !s.Contains("ifstream"))
             {
                 curX -= xOffset;
                 curY += yOffset;
