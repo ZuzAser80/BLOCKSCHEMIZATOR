@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.Reflection.Metadata;
 using System.ComponentModel.Design.Serialization;
 using System.Runtime.Serialization;
+using System.Runtime.InteropServices;
 
 DrawIoGenerator.CreateSimpleDiagram();
 
@@ -67,8 +68,6 @@ public class IfElseData
     }
 
 }
-
-public enum ConnectType { IF, ELSE, FOR, NONE }
 
 public class DrawIoGenerator
 {
@@ -310,6 +309,10 @@ public class DrawIoGenerator
     {
         Console.WriteLine("cpp file name (with extention): ");
         _name = Console.ReadLine();
+        if (_name.StartsWith('"') && _name.EndsWith('"'))
+        {
+            _name = _name.Replace('"', ' ').Trim();
+        }
         List<string> contentList = new List<string>();
         List<List<string>> funcs = new List<List<string>>();
         if (File.Exists(_name))
@@ -367,12 +370,13 @@ public class DrawIoGenerator
             max_y = yStart;
         });
 
-        //xElements.AddRange(ProcessFunc(funcs[1], 800, 0));
         var r = Root(xElements);
 
 
-        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(_name + "_diagram.xml"); ;
+        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(Path.Combine(Path.GetDirectoryName(_name), Path.GetFileNameWithoutExtension(_name)) +"_diagram.xml"); ;
     }
+
+    ///
 
     static XElement Root(List<XElement> elements)
     {
@@ -469,8 +473,6 @@ public class DrawIoGenerator
             )
         );
     }
-
-
 
     static XElement RoundBox(string id, string value, int x, int y, int height = 60, int width = 120)
     {
