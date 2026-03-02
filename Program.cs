@@ -88,7 +88,7 @@ public class DrawIoGenerator
 
     private static XElement ProcessShape(string s, int x, int y, string id)
     {
-        if(s.StartsWith('/'))
+        if (s.Trim().StartsWith("//"))
         {
             return null;
         }
@@ -105,27 +105,28 @@ public class DrawIoGenerator
             max_y = y;
         }
 
-        if ((_types.Any(s.Contains) && s.Contains("{") && s.Contains("(") && s.Contains(")") && !s.Contains("for")) || s.Contains("return"))
+        if ((_types.Any(s.Contains) && s.Contains("{") && s.Contains("(") && s.Contains(")") && !s.Contains("for")) || (s.Contains("return") && s.Trim().EndsWith(";")))
         {
+            Console.WriteLine("func: " + s);
             return RoundBox(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
-        else if (s.Contains("for"))
+        else if (s.Trim().StartsWith("for"))
         {
             return ForLoop(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
-        else if (s.Contains("cin") || s.Contains("cout"))
+        else if (s.Trim().StartsWith("cin") || s.Trim().StartsWith("cout"))
         {
             return CinCout(id, s.TrimStart(), x, y);
         }
-        else if (s.Contains("if") && !s.Contains("else") && !s.Contains("ifstream"))
+        else if (s.Trim().StartsWith("if") && !s.Contains("else") && !s.Contains("ifstream"))
         {
             return IfStatement(id, s.Replace('{', ' ').Trim(), x, y);
         }
-        else if (s.Contains("while"))
+        else if (s.Trim().StartsWith("while"))
         {
             return WhileLoop(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
-        else if (s.Trim().Length > 5 && !s.Contains("else"))
+        else if (s.Trim().Length > 2 && !s.Contains("else"))
         {
             return Box(id, s.Trim(), x, y);
         }
@@ -142,22 +143,23 @@ public class DrawIoGenerator
         Stack<IfElseData> ifStack = new Stack<IfElseData>();
         int curX = xStart, curY = yStart + yOffset, c = 0, p = 0;
         List<string> contentList = funcAndBody;
+        List<int> noConnectSourceIndex = new List<int>();
         for (int i = 0; i < contentList.Count; ++i)
         {
             var s = contentList[i];
 
             var id = uuid + c;
 
-            if (s.Contains("{") && i != 0)
+            if (s.Contains("{") && !s.Contains("{}") && i != 0)
             {
-                if (s.Contains("else"))
+                if (s.Trim().StartsWith("else") && !s.Trim().StartsWith("if"))
                 {
                     curX = ifStack.Peek().X;
                     curY = ifStack.Peek().Y;
                     elements.Add(Arrow(id + "_elsearrow", ifStack.Peek().ConditionId, uuid + (c + 1).ToString()));
                 }
                 stack.Push(new ConnectData(curX, curY, id, s));
-                if (s.Contains("if"))
+                if (s.Trim().StartsWith("if"))
                 {
                     ifStack.Push(new IfElseData(id, curX, curY));
                 }
@@ -165,13 +167,22 @@ public class DrawIoGenerator
             var o = ProcessShape(s, curX, curY, id);
             lastTrueElem = o == null ? lastTrueElem : id;
             elements.Add(o);
-            if (s.Contains("if") && !s.Contains("ifstream"))
+            if (s.Trim().StartsWith("if") && !s.Contains("ifstream"))
             {
                 curX -= xOffset;
                 curY += yOffset;
             }
-            if (s.Contains("}") && stack.Count > 0)
+            if (s.Contains("}") && !s.Contains("{}") && stack.Count > 0)
             {
+                if (s.Contains("else if"))
+                {
+                    max_x -= xOffset;
+                    c++;
+                    elements.Add(IfStatement(uuid + c, s.Replace('}', ' ').Replace('{', ' ').Trim(), max_x + xOffset, curY + yOffset));
+                    
+                    
+                    continue;
+                }
                 if (stack.Peek().line.Contains("else") && s.Contains("else"))
                 {
                     var t = stack.Pop();
@@ -180,10 +191,11 @@ public class DrawIoGenerator
                     stack.Push(b);
                 }
                 var q = stack.Pop();
-                var _else = q.line.Contains("else");
-                var _if = q.line.Contains("if");
-                var _for = q.line.Contains("for");
-                var _while = q.line.Contains("while");
+                //Console.WriteLine(" ::: " + q.line);
+                var _else = q.line.Trim().StartsWith("else");
+                var _if = q.line.Trim().StartsWith("if");
+                var _for = q.line.Trim().StartsWith("for");
+                var _while = q.line.Trim().StartsWith("while");
                 if (ifStack.Count > 0)
                 {
                     var _lastIf = ifStack.Peek();
@@ -193,7 +205,7 @@ public class DrawIoGenerator
                         _lastIf.TrueX = curX;
                         curX = q.x;
 
-                        if (!contentList[i + 1].Contains("else") && !s.Contains("else"))
+                        if (i < contentList.Count - 1 && !contentList[i + 1].Contains("else") && !s.Contains("else"))
                         {
                             //типа обычный иф
                             c++;
@@ -209,11 +221,12 @@ public class DrawIoGenerator
                         else
                         {
                             curY = q.y + yOffset;
+                            
                         }
                     }
                     else if (_else && !s.Contains("else"))
                     {
-
+                        Console.WriteLine(" : " + 5435435 + " : ");
                         _lastIf.LastFalseId = uuid + (c - 1).ToString();
                         _lastIf.FalseX = curX;
                         curX = q.x;
@@ -230,6 +243,7 @@ public class DrawIoGenerator
                 }
                 if (_for || _while)
                 {
+                    noConnectSourceIndex.Add(c);
                     string lastBodyId = uuid + (c - 1).ToString();
                     string conditionId = q.connection_start;
 
@@ -253,12 +267,9 @@ public class DrawIoGenerator
                         curY -= yOffset / 2;
                     }
                     else
-                    {
+                    {                        
                         string nextShapeId;
-                        if (i + 1 < contentList.Count && (contentList[i + 1].Contains("}") || contentList[i + 1].Contains("if")))
-                            nextShapeId = uuid + c.ToString();               // next shape not yet created
-                        else
-                            nextShapeId = uuid + (c + 1).ToString();         // shape after the closing brace
+                        nextShapeId = uuid + c.ToString();        // shape after the closing brace
 
 
 
@@ -272,7 +283,7 @@ public class DrawIoGenerator
                 // все остальные циклы блеать
 
             }
-            if (s.Contains("else"))
+            if (s.Trim().StartsWith("else"))
             {
                 curX = max_x + xOffset;
                 curY += yOffset;
@@ -280,24 +291,17 @@ public class DrawIoGenerator
             if (lastTrueElem == id)
             {
                 curY += yOffset;
-                c++;
-                p = 0;
-            }
-            else
-            {
-                p++;
-                if (p == 1)
-                {
-                    c++;
-                }
+                c++;                
             }
         }
         int n = 0;
         for (int i = 1; i < c; ++i)
         {
             var r = new Random();
-            elements.Add(Arrow(uuid + i + "_arrow" + n, uuid + (i - 1).ToString(), uuid + i));
-            n++;
+            if (!noConnectSourceIndex.Contains(i)) {
+                elements.Add(Arrow(uuid + i + "_arrow" + n, uuid + (i - 1).ToString(), uuid + i));
+                n++;
+            }
         }
         return elements;
     }
@@ -474,7 +478,7 @@ public class DrawIoGenerator
                         new XAttribute("id", id),
                         new XAttribute("value", value),
                         new XAttribute("vertex", "1"),
-                        new XAttribute("style", "rounded=1;whiteSpace=wrap;html=1;"),
+                        new XAttribute("style", "ellipse;whiteSpace=wrap;html=1;"),
                         new XAttribute("parent", "1"),
                         new XElement("mxGeometry",
                             new XAttribute("height", height),
@@ -576,7 +580,7 @@ public class DrawIoGenerator
                             new XAttribute("height", height),
                             new XAttribute("width", width),
                             new XAttribute("x", x - width / 2),
-                            new XAttribute("y", y + height / 2),
+                            new XAttribute("y", y),
                             new XAttribute("as", "geometry")
                         )
                     );
@@ -612,7 +616,7 @@ public class DrawIoGenerator
                             new XAttribute("height", height),
                             new XAttribute("width", width),
                             new XAttribute("x", x - width / 2),
-                            new XAttribute("y", y + height / 2),
+                            new XAttribute("y", y),
                             new XAttribute("as", "geometry")
                         )
                     );

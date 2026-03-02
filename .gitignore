@@ -33,4 +33,5 @@
 *.zip
 /bin
 /obj
+/test
 
