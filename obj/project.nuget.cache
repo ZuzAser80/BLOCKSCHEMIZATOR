@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "z5pKf6ZIL9M=",
+  "dgSpecHash": "dAjaCWZLgw4=",
   "success": true,
   "projectFilePath": "/home/admin-debian/smislovoi_converter/smislovoi_converter/smislovoi_converter.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "/home/admin-debian/.nuget/packages/microsoft.netcore.app.host.win-x64/10.0.2/microsoft.netcore.app.host.win-x64.10.0.2.nupkg.sha512"
+  ],
   "logs": []
 }

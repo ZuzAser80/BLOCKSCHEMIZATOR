@@ -113,7 +113,7 @@ public class DrawIoGenerator
         {
             return ForLoop(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
-        else if (s.Trim().StartsWith("cin") || s.Trim().StartsWith("cout"))
+        else if (s.Trim().StartsWith("getline") || s.Trim().StartsWith("printf") || s.Trim().StartsWith("cin") || s.Trim().StartsWith("cout"))
         {
             return CinCout(id, s.TrimStart(), x, y);
         }
@@ -168,6 +168,8 @@ public class DrawIoGenerator
             elements.Add(o);
             if (s.Trim().StartsWith("if") && !s.Contains("ifstream"))
             {
+                elements.Add(Text(uuid + c + "1_text", "1", curX - xOffset / 2, curY, 30, 60, "fontSize=21;"));
+                elements.Add(Text(uuid + c + "0_text", "0", curX + xOffset / 2, curY, 30, 60, "fontSize=21;"));
                 curX -= xOffset;
                 curY += yOffset;
             }
@@ -225,7 +227,6 @@ public class DrawIoGenerator
                     }
                     else if (_else && !s.Contains("else"))
                     {
-                        Console.WriteLine(" : " + 5435435 + " : ");
                         _lastIf.LastFalseId = uuid + (c - 1).ToString();
                         _lastIf.FalseX = curX;
                         curX = q.x;
@@ -250,6 +251,16 @@ public class DrawIoGenerator
                     int loopBackY = q.y;                // Y of the condition
                     int midY = curY;       // Y halfway down from the last body
 
+                    elements.Add(Text(uuid + c + "for1_text", "1", q.x + 40, q.y + yOffset/2, 30, 60, "fontSize=21;"));
+                    // верим в то что у нас есть выход
+                    elements.Add(Text(uuid + c + "for0_text", "0", q.x + xOffset, q.y - 10, 30, 60, "fontSize=21;"));
+                    if (c-1 - int.Parse(string.Concat(q.connection_start.ToArray().Reverse().TakeWhile(char.IsNumber).Reverse())) > 1)
+                    {
+                        // типа > 1 строки в for
+                        elements.Add(Text(uuid + c + "for_brace_text", "{", q.x - 40, q.y + yOffset/2, 30, 60, "fontSize=21;"));
+                        elements.Add(Text(uuid + c + "for_brace_end_text", "}", curX + 40, curY - yOffset/2, 30, 60, "fontSize=21;"));
+                    }
+
                     elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId,
                         lastBodyId, conditionId,
                         loopBackX, loopBackY + 30, midY));
@@ -270,8 +281,6 @@ public class DrawIoGenerator
                         string nextShapeId;
                         nextShapeId = uuid + c.ToString();        // shape after the closing brace
 
-
-
                         elements.Add(Arrow(uuid + c + "_for_exit_arrow" + conditionId, conditionId, nextShapeId));
                         min_x -= 10;
 
@@ -280,7 +289,7 @@ public class DrawIoGenerator
                     }
                 }
                 // все остальные циклы блеать
-
+                // TODO: Switch-case
             }
             if (s.Trim().StartsWith("else"))
             {
@@ -311,7 +320,7 @@ public class DrawIoGenerator
         _name = Console.ReadLine();
         if (_name.StartsWith('"') && _name.EndsWith('"'))
         {
-            _name = _name.Replace('"', ' ').Trim();
+            _name = _name.Replace('"', ' ');
         }
         List<string> contentList = new List<string>();
         List<List<string>> funcs = new List<List<string>>();
@@ -372,11 +381,15 @@ public class DrawIoGenerator
 
         var r = Root(xElements);
 
-
-        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(Path.Combine(Path.GetDirectoryName(_name), Path.GetFileNameWithoutExtension(_name)) +"_diagram.xml"); ;
+        var path = Path.Combine(Path.GetDirectoryName(_name), Path.GetFileNameWithoutExtension(_name));
+        Console.WriteLine(path);
+        if (path.Contains("/ /"))
+        {
+            path = path.Split("/ /")[1];
+        }
+        Console.WriteLine(path);
+        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(path +"_diagram.xml"); ;
     }
-
-    ///
 
     static XElement Root(List<XElement> elements)
     {
@@ -406,6 +419,24 @@ public class DrawIoGenerator
                 new XAttribute("relative", "1"),
                 new XAttribute("as", "geometry")
             )
+        );
+    }
+
+    static XElement Text(string id, string value, int x, int y, int height, int width, string style)
+    {
+        return new XElement("mxCell",
+            new XAttribute("id", id),
+            new XAttribute("value", value),
+            new XAttribute("style", "text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" + style),
+            new XAttribute("parent", "1"),
+            new XAttribute("vertex", "1"),
+            new XElement("mxGeometry",
+                            new XAttribute("height", height),
+                            new XAttribute("width", width),
+                            new XAttribute("x", x - width / 2),
+                            new XAttribute("y", y),
+                            new XAttribute("as", "geometry")
+                        )
         );
     }
 
@@ -627,7 +658,7 @@ public class DrawIoGenerator
 
     static string GenerateRandomString(int length)
     {
-        const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        const string chars = "abcdefghijklmnopqrstuvwxyz";
         var random = new Random();
         var result = new StringBuilder(length);
         for (int i = 0; i < length; i++)
