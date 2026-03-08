@@ -50,6 +50,9 @@ public class IfElseData
     public int TrueX { get; set; }
     public int FalseX { get; set; }
 
+    public int TrueY { get; set; }
+    public int FalseY { get; set; }
+
     public IfElseData(string id, int x, int y)
     {
         ConditionId = id;
@@ -57,15 +60,17 @@ public class IfElseData
         Y = y;
     }
 
-    public void updateAll(bool inTrueBranch, string curId)
+    public void updateAll(bool inTrueBranch, string curId, int curY)
     {
         if (inTrueBranch)
         {
             LastTrueId = curId;
+            TrueY = curY;
         }
         else
         {
             LastFalseId = curId;
+            FalseY = curY;
         }
     }
 
@@ -175,12 +180,12 @@ public class DrawIoGenerator
             var o = ProcessShape(s, curX, curY, id);
             lastTrueElem = o == null ? lastTrueElem : id;
             elements.Add(o);
+            ConnectData q = null;
             if (s.Trim().StartsWith("if") && !s.Contains("ifstream"))
             {
                 elements.Add(Text(uuid + c + "1_text", "1", curX - xOffset / 2, curY, 30, 60, "fontSize=21;"));
                 elements.Add(Text(uuid + c + "0_text", "0", curX + xOffset / 2, curY, 30, 60, "fontSize=21;"));
-                curX -= xOffset;
-                curY += yOffset;
+                curX -= xOffset;                
             }
             if (((s.Contains("}") && !s.Contains("{}")) || (s.Contains("break;") && stack.Peek().line.Trim().StartsWith("case"))) && stack.Count > 0)
             {
@@ -191,15 +196,15 @@ public class DrawIoGenerator
                     elements.Add(IfStatement(uuid + c, s.Replace('}', ' ').Replace('{', ' ').Trim(), max_x + xOffset, curY + yOffset));                                        
                     continue;
                 }
-                if (stack.Peek().line.Contains("else") && s.Contains("else"))
+                if (stack.Peek().line == s)
                 {
                     var t = stack.Pop();
                     var b = stack.Pop();
                     stack.Push(t);
                     stack.Push(b);
                 }
-                var q = stack.Peek();
-                var _else = q.line.Trim().StartsWith("else");
+                q = stack.Peek();
+                var _else = q.line.Contains("else") && !q.line.Contains("else if");
                 var _if = q.line.Trim().StartsWith("if");
                 var _for = q.line.Trim().StartsWith("for");
                 var _while = q.line.Trim().StartsWith("while");
@@ -213,41 +218,49 @@ public class DrawIoGenerator
                     {
                         _lastIf.LastTrueId = uuid + (c - 1).ToString();
                         _lastIf.TrueX = curX;
+                        _lastIf.TrueY = curY - yOffset + 60;
                         curX = q.x;
 
                         if (i < contentList.Count - 1 && !contentList[i + 1].Contains("else") && !s.Contains("else"))
                         {
-                            //типа обычный иф
+                            int midX = curX;
+                            int trueY = _lastIf.TrueY + 30;
+                            int falseY = _lastIf.TrueY + 30;
+                            int midY = trueY + (falseY - trueY) / 2 + 60;
+                            
                             c++;
-                            elements.Add(CreatePointCell(uuid + c + "_mid", curX, max_y + yOffset));
-                            max_y += yOffset;
-                            curY += yOffset;
-                            elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", curX - xOffset, max_y - yOffset / 2, curX));
-                            elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", q.connection_start, uuid + c + "_mid", curX + xOffset, max_y - yOffset / 2, curX));
+                            elements.Add(CreatePointCell(uuid + c + "_mid", midX, midY));
+                            curY = midY + yOffset;
+                            elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", curX - xOffset, trueY, midX));
+                            elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", q.connection_start, uuid + c + "_mid", curX + xOffset, falseY, midX));
                             ifStack.Pop();
                             max_x = int.Max(curX + (int)(1.5 * xOffset), max_x);
                             min_x = int.Min(curX - (int)(1.5 * xOffset), min_x);
+                            curY -= yOffset;
                         }
                         else
                         {
-                            curY = q.y + yOffset;
-                            
-                        }
+                            curY = q.y;                            
+                        }                        
                     }
-                    else if (_else && !s.Contains("else"))
+                    if (_else)
                     {
                         _lastIf.LastFalseId = uuid + (c - 1).ToString();
                         _lastIf.FalseX = curX;
+                        _lastIf.FalseY = curY - yOffset + 90;
                         curX = q.x;
                         curY = max_y;
                         c++;
-                        // сведение 2 стрелок блять
-                        elements.Add(CreatePointCell(uuid + c + "_mid", _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2, max_y + 2 * yOffset));
-                        elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", _lastIf.TrueX, max_y + yOffset / 2, _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2));
-                        elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", _lastIf.LastFalseId, uuid + c + "_mid", _lastIf.FalseX, max_y + yOffset / 2, _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2));
+                        int midX = _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2;
+                        int midY = _lastIf.TrueY + (_lastIf.FalseY - _lastIf.TrueY) / 2 + 60;
+                        elements.Add(CreatePointCell(uuid + c + "_mid", midX, midY));
+                        elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", _lastIf.TrueX, _lastIf.TrueY + 30, midX));
+                        elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", _lastIf.LastFalseId, uuid + c + "_mid", _lastIf.FalseX, _lastIf.FalseY, midX));
                         max_x = int.Max(curX + (int)(1.5 * xOffset), max_x);
                         min_x = int.Min(curX - (int)(1.5 * xOffset), min_x);
                         ifStack.Pop();
+                        curX = midX;
+                        curY = midY;
                     }
                 }
                 if (_for || _while)
@@ -312,8 +325,10 @@ public class DrawIoGenerator
                 }
                 stack.Pop();
             }
-            if (s.Trim().StartsWith("else"))
+            if (s.Trim().Contains("else") && q != null)
             {
+                noConnectSourceIndex.Add(c);
+                elements.Add(Arrow(uuid + c + "_else_connect", q.connection_start, uuid + c));
                 curX = max_x + xOffset;
                 curY += yOffset;
             }
@@ -416,7 +431,7 @@ public class DrawIoGenerator
         {
             if (o[0].Contains("main"))
             {
-                Console.WriteLine(" :::\n " + _bracket);
+                Console.WriteLine(" :::\n ");
                 xElements.Add(Text("maintext", _bracket, xStart + 2 *xOffset, yStart + yOffset, yOffset, xOffset * 2, "align=left;fontSize=21;"));
             }
             var t = ProcessFunc(o, xStart, yStart);
