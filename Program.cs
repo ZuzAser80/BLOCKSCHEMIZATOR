@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Xml.Linq;
 using System.Text;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.ComponentModel;
 using System.Data.Common;
@@ -8,6 +9,7 @@ using System.Reflection.Metadata;
 using System.ComponentModel.Design.Serialization;
 using System.Runtime.Serialization;
 using System.Runtime.InteropServices;
+using Microsoft.VisualBasic;
 
 DrawIoGenerator.CreateSimpleDiagram();
 
@@ -83,7 +85,9 @@ public class DrawIoGenerator
     static int max_x = 0;
     static int max_y = 0;
 
-    static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string" };
+    static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string", "struct", "string*", "int*", "char*", "double*", "float*" };
+    static List<string> _funcs = new List<string>();
+    static string _bracket = "";
 
     private static XElement ProcessShape(string s, int x, int y, string id)
     {
@@ -104,11 +108,15 @@ public class DrawIoGenerator
             max_y = y;
         }
 
+
         if ((_types.Any(s.Contains) && s.Contains("{") && s.Contains("(") && s.Contains(")") && !s.Contains("for")) || (s.Contains("return") && s.Trim().EndsWith(";")))
         {
-            Console.WriteLine("func: " + s);
             return RoundBox(id, s.Replace('{', ' ').TrimEnd(), x, y);
         }
+        else if (_funcs.Any(s.Contains))
+        {
+           return FuncCallBox(id, s, x, y);
+        } 
         else if (s.Trim().StartsWith("for"))
         {
             return ForLoop(id, s.Replace('{', ' ').TrimEnd(), x, y);
@@ -117,7 +125,7 @@ public class DrawIoGenerator
         {
             return CinCout(id, s.TrimStart(), x, y);
         }
-        else if (s.Trim().StartsWith("if") && !s.Contains("else") && !s.Contains("ifstream"))
+        else if ((s.Trim().StartsWith("if") && !s.Contains("else") && !s.Contains("ifstream")) || s.Trim().Contains("switch"))
         {
             return IfStatement(id, s.Replace('{', ' ').Trim(), x, y);
         }
@@ -127,8 +135,8 @@ public class DrawIoGenerator
         }
         else if (s.Trim().Length > 2 && !s.Contains("else"))
         {
-            return Box(id, s.Trim(), x, y);
-        }
+            return Box(id, s.Replace('{', ' ').Trim(), x, y);
+        }         
         return null;
     }
     public static List<XElement> ProcessFunc(List<string> funcAndBody, int startX, int startY)
@@ -136,6 +144,7 @@ public class DrawIoGenerator
         string lastTrueElem = "";
         xStart = startX;
         yStart = startY;
+        bool offsetDown = true;
         string uuid = GenerateRandomString(19);
         List<XElement> elements = new List<XElement>();
         Stack<ConnectData> stack = new Stack<ConnectData>();
@@ -149,7 +158,7 @@ public class DrawIoGenerator
 
             var id = uuid + c;
 
-            if (s.Contains("{") && !s.Contains("{}") && i != 0)
+            if ((s.Contains("{") && !s.Contains("{}") && i != 0) || s.Trim().StartsWith("case") /*|| s.Trim().StartsWith("default")*/)
             {
                 if (s.Trim().StartsWith("else") && !s.Trim().StartsWith("if"))
                 {
@@ -173,15 +182,13 @@ public class DrawIoGenerator
                 curX -= xOffset;
                 curY += yOffset;
             }
-            if (s.Contains("}") && !s.Contains("{}") && stack.Count > 0)
+            if (((s.Contains("}") && !s.Contains("{}")) || (s.Contains("break;") && stack.Peek().line.Trim().StartsWith("case"))) && stack.Count > 0)
             {
                 if (s.Contains("else if"))
                 {
                     max_x -= xOffset;
                     c++;
-                    elements.Add(IfStatement(uuid + c, s.Replace('}', ' ').Replace('{', ' ').Trim(), max_x + xOffset, curY + yOffset));
-                    
-                    
+                    elements.Add(IfStatement(uuid + c, s.Replace('}', ' ').Replace('{', ' ').Trim(), max_x + xOffset, curY + yOffset));                                        
                     continue;
                 }
                 if (stack.Peek().line.Contains("else") && s.Contains("else"))
@@ -191,12 +198,14 @@ public class DrawIoGenerator
                     stack.Push(t);
                     stack.Push(b);
                 }
-                var q = stack.Pop();
-                //Console.WriteLine(" ::: " + q.line);
+                var q = stack.Peek();
                 var _else = q.line.Trim().StartsWith("else");
                 var _if = q.line.Trim().StartsWith("if");
                 var _for = q.line.Trim().StartsWith("for");
                 var _while = q.line.Trim().StartsWith("while");
+                var _switch = q.line.Trim().StartsWith("switch");
+                var _case = q.line.Trim().StartsWith("case") || q.line.Trim().StartsWith("default");
+                var _struct = q.line.Trim().StartsWith("struct");
                 if (ifStack.Count > 0)
                 {
                     var _lastIf = ifStack.Peek();
@@ -290,15 +299,43 @@ public class DrawIoGenerator
                 }
                 // все остальные циклы блеать
                 // TODO: Switch-case
+                if (_case)
+                {
+                    noConnectSourceIndex.Add(c + 1);
+                    if (contentList[i + 2].Trim().StartsWith("case") || s.Trim().StartsWith("case")) {
+                        elements.Add(Arrow(uuid + c + "_case_arrow2", q.connection_start, uuid + c.ToString()));
+                    }
+                    Console.WriteLine("2141413414 : " + contentList[i + 2].Trim() + " : " + s);
+                    curX = q.x;
+                    curY += yOffset;      
+                    offsetDown = true;              
+                }
+                stack.Pop();
             }
             if (s.Trim().StartsWith("else"))
             {
                 curX = max_x + xOffset;
                 curY += yOffset;
             }
+            if (s.Trim().StartsWith("case"))
+            {
+                if (stack.TryPeek(out ConnectData res) && res.line.Trim().StartsWith("case")) {
+                    elements.Add(Arrow(uuid + c + "_case_arrow", stack.Peek().connection_start, uuid + (c + 1).ToString()));
+                }
+                if (contentList[i - 1].Trim().StartsWith("}"))
+                {
+                    elements.Add(Arrow(uuid + c + "_case_arrow1", stack.Peek().connection_start, uuid + (c + 2).ToString()));
+                }
+                offsetDown = false;
+            }
             if (lastTrueElem == id)
             {
-                curY += yOffset;
+                if( offsetDown) {
+                    curY += yOffset;
+                } else
+                {
+                    curX += xOffset;
+                }
                 c++;                
             }
         }
@@ -330,7 +367,6 @@ public class DrawIoGenerator
         }
         int c = 0;
         List<string> _cur = new List<string>();
-        List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string" };
         int braceDepth = 0;
         bool inFunction = false;
         List<string> currentFunction = null;
@@ -339,12 +375,19 @@ public class DrawIoGenerator
         {
             string trimmed = line.Trim();
 
+            if (trimmed.Contains("#include") || trimmed.Contains("using"))
+            {
+                _bracket += trimmed + "\n";
+            }
+
             if (!inFunction &&
                 _types.Any(t => line.Contains(t)) &&
                 line.Contains("(") && line.Contains(")") &&
                 !line.Contains("for") && !line.Contains("while") &&
                 !line.TrimStart().StartsWith("if"))
             {
+                _funcs.Add(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
+                Console.WriteLine(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
                 inFunction = true;
                 currentFunction = [line];
 
@@ -371,6 +414,11 @@ public class DrawIoGenerator
 
         funcs.ForEach(o =>
         {
+            if (o[0].Contains("main"))
+            {
+                Console.WriteLine(" :::\n " + _bracket);
+                xElements.Add(Text("maintext", _bracket, xStart + 2 *xOffset, yStart + yOffset, yOffset, xOffset * 2, "align=left;fontSize=21;"));
+            }
             var t = ProcessFunc(o, xStart, yStart);
             xElements.AddRange(t);
             xStart = max_x + 3 * xOffset;
@@ -424,12 +472,13 @@ public class DrawIoGenerator
 
     static XElement Text(string id, string value, int x, int y, int height, int width, string style)
     {
+        string encodedValue = System.Net.WebUtility.HtmlEncode(value);
         return new XElement("mxCell",
             new XAttribute("id", id),
             new XAttribute("value", value),
-            new XAttribute("style", "text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" + style),
+            new XAttribute("style", "text;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" + style),
             new XAttribute("parent", "1"),
-            new XAttribute("vertex", "1"),
+            new XAttribute("vertex", "1"),            
             new XElement("mxGeometry",
                             new XAttribute("height", height),
                             new XAttribute("width", width),
@@ -582,6 +631,23 @@ public class DrawIoGenerator
                     );
     }
 
+    static XElement FuncCallBox(string id, string value, int x, int y, int height = 60, int width = 120)
+    {
+        return new XElement("mxCell",
+                        new XAttribute("id", id),
+                        new XAttribute("value", value),
+                        new XAttribute("vertex", "1"),
+                        new XAttribute("style", "shape=process;whiteSpace=wrap;html=1;backgroundOutline=1"),
+                        new XAttribute("parent", "1"),
+                        new XElement("mxGeometry",
+                            new XAttribute("height", height),
+                            new XAttribute("width", width),
+                            new XAttribute("x", x - width / 2),
+                            new XAttribute("y", y),
+                            new XAttribute("as", "geometry")
+                        )
+                    );
+    }
 
     static XElement CinCout(string id, string value, int x, int y, int height = 60, int width = 120)
     {
@@ -619,31 +685,13 @@ public class DrawIoGenerator
                     );
     }
 
-    static XElement SwitchCase(string id, string value, int x, int y)
-    {
-        return new XElement("mxCell",
-                        new XAttribute("id", id),
-                        new XAttribute("parent", "1"),
-                        new XAttribute("style", "shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;"),
-                        new XAttribute("value", value),
-                        new XAttribute("vertex", "1"),
-                        new XElement("mxGeometry",
-                            new XAttribute("height", "40"),
-                            new XAttribute("width", "290"),
-                            new XAttribute("x", x),
-                            new XAttribute("y", y),
-                            new XAttribute("as", "geometry")
-                        )
-                    );
-    }
-
     static XElement IfStatement(string id, string value, int x, int y, int height = 80, int width = 160)
     {
         return new XElement("mxCell",
                         new XAttribute("id", id),
                         new XAttribute("parent", "1"),
                         new XAttribute("style", "rhombus;whiteSpace=wrap;html=1;"),
-                        new XAttribute("value", value),
+                        new XAttribute("value", value), 
                         new XAttribute("vertex", "1"),
                         new XElement("mxGeometry",
                             new XAttribute("height", height),
@@ -654,7 +702,6 @@ public class DrawIoGenerator
                         )
                     );
     }
-
 
     static string GenerateRandomString(int length)
     {
