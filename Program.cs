@@ -14,7 +14,6 @@ using Microsoft.VisualBasic;
 DrawIoGenerator.CreateSimpleDiagram();
 
 
-
 public class ConnectData
 {
     public int x, y, x_min = int.MaxValue, x_max = int.MinValue;
@@ -46,6 +45,7 @@ public class IfElseData
     public string ConditionId { get; set; }
     public string LastTrueId { get; set; }
     public string LastFalseId { get; set; }
+    public string MidId { get; set; }
     public int X { get; set; }
     public int Y { get; set; }
 
@@ -159,6 +159,8 @@ public class DrawIoGenerator
         Stack<ConnectData> stack = new Stack<ConnectData>();
         Stack<IfElseData> ifStack = new Stack<IfElseData>();
         Stack<int> loopLocalMinX = new Stack<int>();
+        Stack<string> loopLocalIfMidId = new Stack<string>();
+        Stack<int> loopNestingDepth = new Stack<int>();
         int curX = xStart, curY = yStart + yOffset, c = 0, p = 0;
         List<string> contentList = funcAndBody;
         List<int> noConnectSourceIndex = new List<int>();
@@ -184,6 +186,7 @@ public class DrawIoGenerator
                 if (s.Trim().StartsWith("for") || s.Trim().StartsWith("while"))
                 {
                     loopLocalMinX.Push(curX);
+                    loopNestingDepth.Push(loopNestingDepth.Count);
                 }
             }
             var o = ProcessShape(s, curX, curY, id);
@@ -247,6 +250,11 @@ public class DrawIoGenerator
                             
                             elements.Add(CreatePointCell(uuid + c + "_mid", midX, midY));
                             curY = midY + yOffset;
+                            if (loopLocalIfMidId.Count > 0)
+                            {
+                                loopLocalIfMidId.Pop();
+                            }
+                            loopLocalIfMidId.Push(uuid + c + "_mid");
                             elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", curX - xOffset, trueY, midX));
                             elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", q.connection_start, uuid + c + "_mid", curX + xOffset, falseY, midX));
                             ifStack.Pop();
@@ -269,6 +277,11 @@ public class DrawIoGenerator
                         int midX = _lastIf.TrueX + (_lastIf.FalseX - _lastIf.TrueX) / 2;
                         int midY = _lastIf.TrueY + (_lastIf.FalseY - _lastIf.TrueY) / 2 + 60;
                         elements.Add(CreatePointCell(uuid + c + "_mid", midX, midY));
+                        if (loopLocalIfMidId.Count > 0)
+                        {
+                            loopLocalIfMidId.Pop();
+                        }
+                        loopLocalIfMidId.Push(uuid + c + "_mid");
                         elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid0", _lastIf.LastTrueId, uuid + c + "_mid", _lastIf.TrueX, _lastIf.TrueY, midX));
                         elements.Add(IfElseEndArrow(uuid + c + "_arrow2mid1", _lastIf.LastFalseId, uuid + c + "_mid", _lastIf.FalseX, _lastIf.FalseY, midX));
                         max_x = int.Max(curX + (int)(1.5 * xOffset), max_x);
@@ -284,7 +297,7 @@ public class DrawIoGenerator
                     string lastBodyId = uuid + (c - 1).ToString();
                     string conditionId = q.connection_start;
 
-                    int loopBackX = loopLocalMinX.Count > 0 ? loopLocalMinX.Peek() : min_x;
+                    int loopBackX = (loopLocalMinX.Count > 0 ? loopLocalMinX.Peek() : min_x) - xOffset;
                     int loopBackY = q.y;
                     int midY = curY;
 
@@ -298,12 +311,30 @@ public class DrawIoGenerator
                         elements.Add(Text(uuid + c + "for_brace_end_text", "}", curX + 40, curY - yOffset/2, 30, 60, "fontSize=21;"));
                     }
 
-                    elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId,
-                        lastBodyId, conditionId,
-                        loopBackX, loopBackY + 30, midY));
-                    elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId + "_mid",
-                        lastBodyId + "_mid", conditionId,
-                        loopBackX, loopBackY, midY));
+                    string loopSourceId = lastBodyId;
+                    string loopSourceIdMid = lastBodyId + "_mid";
+                    bool useIfMidSource = loopLocalIfMidId.Count > 0;
+                    if (useIfMidSource)
+                    {
+                        loopSourceId = loopLocalIfMidId.Peek();
+                        loopSourceIdMid = loopSourceId;
+                    }
+
+                    if (useIfMidSource)
+                    {
+                        elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId,
+                            loopSourceId, conditionId,
+                            loopBackX, loopBackY + 30, midY));
+                    }
+                    else
+                    {
+                        elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId,
+                            loopSourceId, conditionId,
+                            loopBackX, loopBackY + 30, midY));
+                        elements.Add(ForEndArrow(uuid + c + "_for_loop_arrow" + conditionId + "_mid",
+                            loopSourceIdMid, conditionId,
+                            loopBackX, loopBackY, midY));
+                    }
 
 
                     bool hasOuterLoop = stack.Count > 1 && (stack.ElementAt(1).line.Trim().StartsWith("for") || stack.ElementAt(1).line.Trim().StartsWith("while"));
@@ -311,7 +342,8 @@ public class DrawIoGenerator
                     if (hasOuterLoop)
                     {
                         var outerLoop = stack.ElementAt(1);
-                        elements.Add(ForEndForArrow(uuid + c + "_for_exit_arrow" + conditionId, conditionId, outerLoop.connection_start, max_x + 10, q.y, max_y + 10, outerLoop.x - xOffset - 10, outerLoop.y + 30));
+                        int depth = loopNestingDepth.Count;
+                        elements.Add(ForEndForArrow(uuid + c + "_for_exit_arrow" + conditionId, conditionId, outerLoop.connection_start, max_x + 10 + (depth * xOffset), q.y + (depth * yOffset), max_y + 10 + (depth * yOffset), outerLoop.x - xOffset - 10 - (depth * xOffset), outerLoop.y + 30));
                         min_x -= 10;
                         curX = max_x + (int)(1.5 * xOffset);
                         curY -= yOffset / 2;
@@ -341,6 +373,14 @@ public class DrawIoGenerator
                 if (q != null && (q.line.Trim().StartsWith("for") || q.line.Trim().StartsWith("while")) && loopLocalMinX.Count > 0)
                 {
                     loopLocalMinX.Pop();
+                    if (loopLocalIfMidId.Count > 0)
+                    {
+                        loopLocalIfMidId.Pop();
+                    }
+                    if (loopNestingDepth.Count > 0)
+                    {
+                        loopNestingDepth.Pop();
+                    }
                 }
                 stack.Pop();
             }
@@ -405,8 +445,10 @@ public class DrawIoGenerator
         int braceDepth = 0;
         bool inFunction = false;
         bool inStruct = false;
+        bool justExitedFunction = false;
         List<string> _funcNames = new List<string>();
-        List<string> currentFunction = null;
+        List<string> currentFunction = new List<string>();
+        List<string> currentStruct = new List<string>();
 
         foreach (string line in contentList)
         {
@@ -415,8 +457,6 @@ public class DrawIoGenerator
             if(trimmed.Contains("struct"))
             {
                 inStruct = true;
-                braceDepth += 1;
-                _funcNames.Clear();
             }
 
             if (trimmed.Contains("#include") || trimmed.Contains("using"))
@@ -426,20 +466,46 @@ public class DrawIoGenerator
 
             if (!inFunction &&
                 _types.Any(t => line.Contains(t)) &&
-                /*line.Contains("(") && line.Contains(")") &&*/
+                line.Contains("(") && line.Contains(")") &&
                 !line.Contains("for") && !line.Contains("while") &&
                 !line.TrimStart().StartsWith("if"))
             {
                 _funcs.Add(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
-                Console.WriteLine(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
-                inFunction = true;
-                currentFunction = [line];
+                if (!inStruct) {
+                    inFunction = true;
+                    currentFunction = [line];
+                }
                 if (inStruct) {
-                    _funcNames.Add(line);
+                    _funcNames.Add(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
                 }
 
                 braceDepth = line.Count(c => c == '{') - line.Count(c => c == '}');
+            }
+
+            if (inStruct && line.Contains("{") && !line.Trim().StartsWith("struct"))
+            {
+                inFunction = true;
+                currentFunction = [line];
                 continue;
+            }
+
+            if (inStruct && !inFunction)
+            {
+                if (justExitedFunction && line.Trim().StartsWith("}"))
+                {
+                    justExitedFunction = false;
+                    continue;
+                }
+                justExitedFunction = false;
+                currentStruct.Add(line);
+                if (line.Trim() == "};")
+                {
+                    currentStruct.AddRange(_funcNames);
+                    funcs.Add(new List<string>(currentStruct));
+                    inStruct = false;                    
+                    currentStruct.Clear();
+                    _funcNames.Clear();    
+                }
             }
 
             if (inFunction)
@@ -454,6 +520,10 @@ public class DrawIoGenerator
                     funcs.Add(currentFunction);
                     inFunction = false;
                     currentFunction = null;
+                    if (inStruct)
+                    {
+                        justExitedFunction = true;
+                    }
                 }
             }
         }
@@ -462,7 +532,7 @@ public class DrawIoGenerator
 
         funcs.ForEach(o =>
         {
-            if (o[0].Contains("main"))
+            if (o.Count > 0 && o[0].Contains("main"))
             {
                 xElements.Add(Text("maintext", _bracket, xStart + 2 *xOffset, yStart + yOffset, yOffset, xOffset * 2, "align=left;fontSize=21;"));
             }
@@ -542,7 +612,7 @@ public class DrawIoGenerator
             new XAttribute("id", id),
             new XAttribute("value", ""),
             new XAttribute("edge", "1"),
-            new XAttribute("style", "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"),
+            new XAttribute("style", "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"),
             new XAttribute("parent", "1"),
             new XAttribute("source", source),
             new XAttribute("target", target),
@@ -552,8 +622,7 @@ public class DrawIoGenerator
                 new XElement("Array",
                     new XAttribute("as", "points"),
                     new XElement("mxPoint", new XAttribute("x", x), new XAttribute("y", low_y)),
-                    new XElement("mxPoint", new XAttribute("x", x - xOffset / 2), new XAttribute("y", low_y)),
-                    new XElement("mxPoint", new XAttribute("x", x - xOffset / 2), new XAttribute("y", y))
+                    new XElement("mxPoint", new XAttribute("x", x), new XAttribute("y", y))
                 )
             )
         );
@@ -565,7 +634,7 @@ public class DrawIoGenerator
             new XAttribute("id", id),
             new XAttribute("value", ""),
             new XAttribute("edge", "1"),
-            new XAttribute("style", "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"),
+            new XAttribute("style", "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"),
             new XAttribute("parent", "1"),
             new XAttribute("source", source),
             new XAttribute("target", target),
@@ -603,7 +672,7 @@ public class DrawIoGenerator
 
     static XElement RoundBox(string id, string value, int x, int y, int height = 60, int width = 120)
     {
-        width = value.Length * widthMultiplier;
+        width = value.Length * widthMultiplier + 20;
         return new XElement("mxCell",
                         new XAttribute("id", id),
                         new XAttribute("value", value),
@@ -663,7 +732,7 @@ public class DrawIoGenerator
 
     static XElement Box(string id, string value, int x, int y, int height = 60, int width = 120)
     {
-        width = value.Length * widthMultiplier;
+        width = value.Length * widthMultiplier + 20;
         return new XElement("mxCell",
                         new XAttribute("id", id),
                         new XAttribute("value", value),
@@ -682,7 +751,7 @@ public class DrawIoGenerator
 
     static XElement FuncCallBox(string id, string value, int x, int y, int height = 60, int width = 120)
     {
-        width = value.Length * widthMultiplier;
+        width = value.Length * widthMultiplier + 20;
         return new XElement("mxCell",
                         new XAttribute("id", id),
                         new XAttribute("value", value),
@@ -701,7 +770,7 @@ public class DrawIoGenerator
 
     static XElement CinCout(string id, string value, int x, int y, int height = 60, int width = 120)
     {
-        width = value.Length * widthMultiplier;
+        width = value.Length * widthMultiplier + 20;
         return new XElement("mxCell",
                         new XAttribute("id", id),
                         new XAttribute("value", value),
