@@ -93,13 +93,13 @@ public class DrawIoGenerator
     static int max_x = 0;
     static int max_y = 0;
 
-    static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string", "struct", "string*", "int*", "char*", "double*", "float*" };
+    static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string", "struct", "class", "string*", "int*", "char*", "double*", "float*" };
     static List<string> _funcs = new List<string>();
     static string _bracket = "";
 
     private static XElement ProcessShape(string s, int x, int y, string id)
     {
-        if (s.Trim().StartsWith("//"))
+        if (s.Trim().StartsWith("//") || s.Trim().StartsWith("/*") || s.Trim().EndsWith("\\*"))
         {
             return null;
         }
@@ -161,6 +161,8 @@ public class DrawIoGenerator
         Stack<int> loopLocalMinX = new Stack<int>();
         Stack<string> loopLocalIfMidId = new Stack<string>();
         Stack<int> loopNestingDepth = new Stack<int>();
+        string lastCaseId = "";
+        int stackMaxX = 0;
         int curX = xStart, curY = yStart + yOffset, c = 0, p = 0;
         List<string> contentList = funcAndBody;
         List<int> noConnectSourceIndex = new List<int>();
@@ -170,8 +172,12 @@ public class DrawIoGenerator
 
             var id = uuid + c;
 
-            if ((s.Contains("{") && !s.Contains("{}") && i != 0) || s.Trim().StartsWith("case") /*|| s.Trim().StartsWith("default")*/)
+            if ((s.Contains("{") && !s.Contains("{}") && i != 0) || s.Trim().StartsWith("case") || s.Trim().StartsWith("default"))
             {
+                if ((s.Trim().StartsWith("case") || s.Trim().StartsWith("default")) && lastCaseId.Count() > 0)
+                {
+                    elements.Add(Arrow(uuid + c + "_case_arrow2", lastCaseId, id.ToString()));
+                }
                 if (s.Trim().StartsWith("else") && !s.Trim().StartsWith("if"))
                 {
                     curX = ifStack.Peek().X;
@@ -230,7 +236,7 @@ public class DrawIoGenerator
                 var _while = q.line.Trim().StartsWith("while");
                 var _switch = q.line.Trim().StartsWith("switch");
                 var _case = q.line.Trim().StartsWith("case") || q.line.Trim().StartsWith("default");
-                var _struct = q.line.Trim().StartsWith("struct");
+                var _struct = q.line.Trim().StartsWith("struct") || q.line.Trim().StartsWith("class");
                 if (ifStack.Count > 0)
                 {
                     var _lastIf = ifStack.Peek();
@@ -362,13 +368,18 @@ public class DrawIoGenerator
                 if (_case)
                 {
                     noConnectSourceIndex.Add(c + 1);
-                    if (contentList[i + 2].Trim().StartsWith("case") || s.Trim().StartsWith("case")) {
-                        elements.Add(Arrow(uuid + c + "_case_arrow2", q.connection_start, uuid + c.ToString()));
-                    }
-                    Console.WriteLine("2141413414 : " + contentList[i + 2].Trim() + " : " + s);
+                    //noConnectSourceIndex.Add(c);
+                    
+
+                    //Console.WriteLine("2141413414 : " + contentList[i + 2].Trim() + " : " + s);
                     curX = q.x;
                     curY += yOffset;      
-                    offsetDown = true;              
+                    offsetDown = true;         
+                    lastCaseId = q.connection_start;     
+                }
+                if (_switch)
+                {
+                    elements.Add(Arrow(uuid + c.ToString() + "_switch", lastCaseId, uuid + c.ToString()));                    
                 }
                 if (q != null && (q.line.Trim().StartsWith("for") || q.line.Trim().StartsWith("while")) && loopLocalMinX.Count > 0)
                 {
@@ -454,7 +465,7 @@ public class DrawIoGenerator
         {
             string trimmed = line.Trim();
 
-            if(trimmed.Contains("struct"))
+            if(trimmed.Contains("struct") || trimmed.Contains("class"))
             {
                 inStruct = true;
             }
@@ -468,7 +479,7 @@ public class DrawIoGenerator
                 _types.Any(t => line.Contains(t)) &&
                 line.Contains("(") && line.Contains(")") &&
                 !line.Contains("for") && !line.Contains("while") &&
-                !line.TrimStart().StartsWith("if"))
+                !line.TrimStart().Contains("if"))
             {
                 _funcs.Add(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
                 if (!inStruct) {
@@ -479,11 +490,15 @@ public class DrawIoGenerator
                     _funcNames.Add(line.Split('(')[0].Replace(_types.Find(line.Contains), "").Trim());
                 }
 
-                braceDepth = line.Count(c => c == '{') - line.Count(c => c == '}');
+                //braceDepth = line.Count(c => c == '{') - line.Count(c => c == '}');
             }
 
-            if (inStruct && line.Contains("{") && !line.Trim().StartsWith("struct"))
+            if (inStruct && line.Contains("{") && !line.Trim().StartsWith("struct") && line.Trim().StartsWith("class") &&
+            line.Contains("(") && line.Contains(")") &&
+                !line.Contains("for") && !line.Contains("while") &&
+                !line.TrimStart().Contains("if"))
             {
+                braceDepth = 1;
                 inFunction = true;
                 currentFunction = [line];
                 continue;
@@ -501,7 +516,8 @@ public class DrawIoGenerator
                 if (line.Trim() == "};")
                 {
                     currentStruct.AddRange(_funcNames);
-                    funcs.Add(new List<string>(currentStruct));
+                    Console.WriteLine("ADDING: " + currentStruct[0]);
+                    funcs.Add([.. currentStruct]);
                     inStruct = false;                    
                     currentStruct.Clear();
                     _funcNames.Clear();    
@@ -517,6 +533,7 @@ public class DrawIoGenerator
 
                 if (braceDepth == 0)
                 {
+                    Console.WriteLine("ADDIN1111: " + currentFunction[0]);
                     funcs.Add(currentFunction);
                     inFunction = false;
                     currentFunction = null;
