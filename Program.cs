@@ -95,6 +95,7 @@ public class DrawIoGenerator
 
     static List<string> _types = new List<string>() { "void", "int", "double", "float", "char", "string", "struct", "class", "string*", "int*", "char*", "double*", "float*" };
     static List<string> _funcs = new List<string>();
+    //static List<string> _structs = new List<string>();
     static string _bracket = "";
 
     private static XElement ProcessShape(string s, int x, int y, string id)
@@ -468,12 +469,15 @@ public class DrawIoGenerator
             if(trimmed.Contains("struct") || trimmed.Contains("class"))
             {
                 inStruct = true;
+                Console.WriteLine(" ::: " + trimmed.Replace("struct", "").Replace("class", "").Replace("{", "").Trim());
+                _types.Add(trimmed.Replace("struct", "").Replace("class", "").Replace("{", "").Trim());
             }
 
             if (trimmed.Contains("#include") || trimmed.Contains("using"))
             {
                 _bracket += trimmed + "\n";
             }
+            
 
             if (!inFunction &&
                 _types.Any(t => line.Contains(t)) &&
