@@ -214,7 +214,7 @@ public class DrawIoGenerator
                 elements.Add(Text(uuid + c + "0_text", "0", curX + xOffset / 2, curY, 30, 60, "fontSize=21;"));
                 curX -= xOffset;                
             }
-            if (((s.Contains("}") && !s.Contains("{}")) || (s.Contains("break;") && stack.Peek().line.Trim().StartsWith("case"))) && stack.Count > 0)
+            if (stack.Count > 0 && ((s.Contains("}") && !s.Contains("{}")) || (s.Contains("break;") && stack.Peek().line.Trim().StartsWith("case"))))
             {
                 if (s.Contains("else if"))
                 {
@@ -497,7 +497,7 @@ public class DrawIoGenerator
                 //braceDepth = line.Count(c => c == '{') - line.Count(c => c == '}');
             }
 
-            if (inStruct && line.Contains("{") && !line.Trim().StartsWith("struct") && line.Trim().StartsWith("class") &&
+            if (inStruct && line.Contains("{") && !line.Trim().StartsWith("struct") && !line.Trim().StartsWith("class") &&
             line.Contains("(") && line.Contains(")") &&
                 !line.Contains("for") && !line.Contains("while") &&
                 !line.TrimStart().Contains("if"))
