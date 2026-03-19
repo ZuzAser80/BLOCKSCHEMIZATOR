@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Xml.Linq;
 using System.Text;
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.ComponentModel;
@@ -574,7 +575,88 @@ public class DrawIoGenerator
             path = path.Split("/ /")[1];
         }
         Console.WriteLine(path);
-        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(path +"_diagram.xml"); ;
+        new XDocument(new XDeclaration("1.0", "utf-8", "yes"), r).Save(path +"_diagram.xml");
+        string filePath = path + "_diagram.xml";
+
+        bool launched = false;
+
+        Console.WriteLine($"Diagram saved to: {filePath}");        
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            string[] windowsPaths = {
+                @"C:\Program Files\draw.io\draw.io.exe",
+                @"C:\Program Files (x86)\draw.io\draw.io.exe",
+                Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\draw.io\draw.io.exe")
+            };
+
+            foreach (var winPath in windowsPaths)
+            {
+                if (File.Exists(winPath))
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(winPath, $"\"{filePath}\"") { UseShellExecute = true });
+                        launched = true;
+                        break;
+                    }
+                    catch { }
+                }
+            }
+
+            if (!launched)
+            {
+                try
+                {
+                    Process.Start("cmd", $"/c start \"\" \"{filePath}\"");
+                    launched = true;
+                }
+                catch { }
+            }
+        }
+        else
+        {
+            // try
+            // {
+            //     Process.Start("wine", $"\"C:\\Program Files\\draw.io\\draw.io.exe\" \"{filePath}\"");
+            //     launched = true;
+            // }
+            // catch { }
+
+            if (!launched)
+            {
+                try
+                {
+                    Process.Start("flatpak", $"run com.jgraph.drawio \"{filePath}\"");
+                    launched = true;
+                }
+                catch { }
+            }
+
+            if (!launched)
+            {
+                try
+                {
+                    Process.Start("snap", $"run drawio \"{filePath}\"");
+                    launched = true;
+                }
+                catch { }
+            }
+
+            if (!launched)
+            {
+                try
+                {
+                    Process.Start("xdg-open", $"\"{filePath}\"");
+                    launched = true;
+                }
+                catch { }
+            }
+        }
+        if (!launched)
+        {
+            Console.WriteLine("Please open the diagram manually in draw.io");
+        }
     }
 
     static XElement Root(List<XElement> elements)
